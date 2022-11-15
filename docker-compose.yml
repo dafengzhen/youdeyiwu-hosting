@@ -1,0 +1,116 @@
+version: "3.9"
+services:
+  youdeyiwu-db:
+    image: mariadb:10.6
+    volumes:
+      - type: volume
+        source: youdeyiwu-db
+        target: /var/lib/mysql
+
+  youdeyiwu-cache:
+    image: redis:7
+    volumes:
+      - type: volume
+        source: youdeyiwu-cache
+        target: /data
+      - type: bind
+        source: ./redis/redis.conf
+        target: /usr/local/etc/redis/redis.conf
+      - type: bind
+        source: ./redis/users.acl
+        target: /etc/redis/users.acl
+    command: redis-server /usr/local/etc/redis/redis.conf
+
+  youdeyiwu-mq:
+    image: rabbitmq:3-management
+    volumes:
+      - type: volume
+        source: youdeyiwu-mq
+        target: /var/lib/rabbitmq
+      - type: bind
+        source: ./mq/enabled_plugins
+        target: /etc/rabbitmq/enabled_plugins
+
+  youdeyiwu-oss:
+    image: quay.io/minio/minio
+    volumes:
+      - type: volume
+        source: youdeyiwu-oss
+        target: /data
+      - type: volume
+        source: youdeyiwu-oss-events
+        target: /home/events
+    command: server /data --console-address ":9001"
+
+  youdeyiwu-oss-cli:
+    image: minio/mc
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        /bin/sleep 10
+        mc alias set youdeyiwu-oss http://youdeyiwu-oss:9000 root 12345678
+        mc mb -l youdeyiwu-oss/youdeyiwu
+        mc anonymous set public youdeyiwu-oss/youdeyiwu
+        mc admin info youdeyiwu-oss
+        mc admin config set youdeyiwu-oss notify_amqp:primary \
+          url="amqp://root:123456@youdeyiwu-mq:5672" \
+          exchange="youdeyiwu.business.exchange" \
+          exchange_type="topic" \
+          routing_key="#.storage.key" \
+          mandatory="on" \
+          durable="on" \
+          no_wait="on" \
+          internal="off" \
+          auto_deleted="off" \
+          delivery_mode="2" \
+          queue_dir="/home/events" \
+          queue_limit="10000" \
+          comment="youdeyiwu-oss"
+        mc admin service restart youdeyiwu-oss
+        mc event add --event "get" youdeyiwu-oss/youdeyiwu arn:minio:sqs::primary:amqp
+
+  youdeyiwu-backend:
+    image: dafengzhen/youdeyiwu-backend
+    volumes:
+      - type: volume
+        source: youdeyiwu-backend-logs
+        target: /youdeyiwu-backend/logs
+      - type: volume
+        source: youdeyiwu-backend-indexs
+        target: /youdeyiwu-backend/indexs
+      - type: volume
+        source: youdeyiwu-backend-keys
+        target: /youdeyiwu-backend/BOOT-INF/classes/keys
+
+  youdeyiwu-frontend:
+    image: dafengzhen/youdeyiwu-frontend
+    volumes:
+      - type: volume
+        source: youdeyiwu-frontend-icons
+        target: /youdeyiwu-frontend/public/icons
+      - type: volume
+        source: youdeyiwu-frontend-images
+        target: /youdeyiwu-frontend/public/images
+
+volumes:
+  youdeyiwu-backend-logs:
+    driver: local
+  youdeyiwu-backend-indexs:
+    driver: local
+  youdeyiwu-backend-keys:
+    driver: local
+  youdeyiwu-frontend-icons:
+    driver: local
+  youdeyiwu-frontend-images:
+    driver: local
+  youdeyiwu-db:
+    driver: local
+  youdeyiwu-cache:
+    driver: local
+  youdeyiwu-mq:
+    driver: local
+  youdeyiwu-oss:
+    driver: local
+  youdeyiwu-oss-events:
+    driver: local

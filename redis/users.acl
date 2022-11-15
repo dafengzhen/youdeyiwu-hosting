@@ -1,0 +1,1 @@
+user root on >123456 ~* &* +@all

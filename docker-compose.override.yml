@@ -1,0 +1,102 @@
+version: "3.9"
+services:
+  youdeyiwu-db:
+    labels:
+      - maintainer=dafengzhen
+      - description=构建数据库应用
+    container_name: youdeyiwu-db
+    environment:
+      MARIADB_DATABASE: youdeyiwu
+      MARIADB_ROOT_PASSWORD: 123456
+    ports:
+      - "3307:3306"
+    networks:
+      - youdeyiwu-backend
+
+  youdeyiwu-cache:
+    labels:
+      - maintainer=dafengzhen
+      - description=构建缓存应用
+    container_name: youdeyiwu-cache
+    ports:
+      - "6379:6379"
+    networks:
+      - youdeyiwu-backend
+
+  youdeyiwu-mq:
+    labels:
+      - maintainer=dafengzhen
+      - description=构建中间件应用
+    container_name: youdeyiwu-mq
+    environment:
+      RABBITMQ_DEFAULT_USER: root
+      RABBITMQ_DEFAULT_PASS: 123456
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+      - "61613:61613"
+    networks:
+      - youdeyiwu-backend
+
+  youdeyiwu-oss:
+    labels:
+      - maintainer=dafengzhen
+      - description=构建存储应用
+    container_name: youdeyiwu-oss
+    environment:
+      MINIO_ROOT_USER: root
+      MINIO_ROOT_PASSWORD: 12345678
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    depends_on:
+      - youdeyiwu-mq
+    networks:
+      - youdeyiwu-backend
+
+  youdeyiwu-oss-cli:
+    labels:
+      - maintainer=dafengzhen
+      - description=构建存储应用
+    container_name: youdeyiwu-oss-cli
+    depends_on:
+      - youdeyiwu-mq
+      - youdeyiwu-oss
+    networks:
+      - youdeyiwu-backend
+
+  youdeyiwu-backend:
+    labels:
+      - maintainer=dafengzhen
+      - description=构建后端应用
+    container_name: youdeyiwu-backend
+    depends_on:
+      - youdeyiwu-db
+      - youdeyiwu-cache
+      - youdeyiwu-mq
+      - youdeyiwu-oss
+      - youdeyiwu-oss-cli
+    ports:
+      - "8080:8080"
+    network_mode: host
+    env_file:
+      - youdeyiwu-backend.env
+
+  youdeyiwu-frontend:
+    labels:
+      - maintainer=dafengzhen
+      - description=构建前端应用
+    container_name: youdeyiwu-frontend
+    depends_on:
+      - youdeyiwu-backend
+    ports:
+      - "3000:3000"
+    network_mode: host
+    env_file:
+      - youdeyiwu-frontend.env
+
+networks:
+  youdeyiwu-backend:
+    name: youdeyiwu-backend
+  youdeyiwu-frontend:
+    name: youdeyiwu-frontend
